@@ -11,14 +11,14 @@
 % Result = [a,foo,a,c,a,d]
 % ?- replace_all([a,b,a,c,a,d],prolog,logic,Result).
 
-% basecase
+% basecase, if empty list is provided return empty list
 replace_all([], _, _, []).
 
-% recursion
+% if head is not X then recursively call it on the tail
 replace_all([H|T], X, Y, [H|Result]):- H \= X,
     replace_all(T, X, Y, Result).
 
-% dis-regard the head
+% if head = X then dis-regard the head and recrusively call it with % the new head as Y
 replace_all([_|Tail], X, Y, Result) :-
         replace_all([Y|Tail], X, Y, Result).
 

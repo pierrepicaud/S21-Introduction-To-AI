@@ -10,8 +10,10 @@
 
 Example world (D = doctor, C = covid, M = mask, H = home):
 
+Conceptual
+
   =====================================================
-  |    |     |    |    |	|    |     |    |    |	  |
+  |9/1 |     |    |    |	|    |     |    |    |	  |
   |----|-----|----|----|----|----|-----|----|----|----|
   |    |     |    |    |	|    |  D  |    |    |	  |
   |----|-----|----|----|----|----|-----|----|----|----|
@@ -30,6 +32,28 @@ Example world (D = doctor, C = covid, M = mask, H = home):
   |1/1 | 2/1 |3/1 |    |	|    |     |    |    |	  |
   =====================================================
 
+  Implementation
+
+  =====================================================
+  |1/1 | 1/2 |    |    |	|    |     |    |    |	  |
+  |----|-----|----|----|----|----|-----|----|----|----|
+  |2/1 |     |    |    |	|    |  D  |    |    |	  |
+  |----|-----|----|----|----|----|-----|----|----|----|
+  |    |  M  |    |    |	|    |     |    | H  |	  |
+  |----|-----|----|----|----|----|-----|----|----|----|
+  |    |     |    | C  |	|    |     |    | ^  |	^ |
+  |----|-----|----|----|----|----|-----|----|----|----|  
+  |    |     |    |    |	|    |     |    | ^  | C  |
+  |----|-----|----|----|----|----|-----|----|----|----|
+  |    |     |    |    |	|  ^ |  ^  | ^  | ^  |	^ |
+  |----|-----|----|----|----|----|-----|----|----|----|
+  |7/1 |     |    |    |	|  ^ |  D  | ^  |    |	  |
+  |----|-----|----|----|----|----|-----|----|----|----|
+  |8/1 | 8/2 |    |    |	|  ^ |  ^  | ^  |    |	  |
+  |----|-----|----|----|----|----|-----|----|----|----|
+  |9/1 | 9/2 |9/3 |    |	|    |     |    |    |	  |
+  =====================================================
+
 */
 
 % :- style_check(-discontiguous).
@@ -37,55 +61,104 @@ Example world (D = doctor, C = covid, M = mask, H = home):
 :- use_module(library(lists)).
 :- use_module(library(random)).
 
-% This would have been easier had I've got practiced in coq
 % The actor doesn't know about the covid and the doctor like how the actor doesn't know about the wumpus
-% How does vacinated or mask works here?
-% How to generate graph randomly? Doing
-% What todo about the scream? Turned it into Immuned
+% How does vacinated or mask works here? perc(masked = 0, vaccinated = 0,...)
+% What todo about the scream? Turned it into Immuned, but have to ...
+% ... change the logic of killing wumpus to vaccinated, because picking up gold is same as picking up mask.
 % climb? the agent can climb out of the pit where he came in, in our case it would be get in home
 
-
 % Current Goal
-% Still can't figure it out the logic behind how to find the path
+% Writting covid constraints
 % Write doctor constraint
 % Write home constraint
 % Write mask
-% Make a randomly generated map
-% Make a GUI
 % make a version so that it can track home and go to it.
+% Still can't figure it out the logic behind how to find the path
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%AGENT-CODE%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%constraints for world generation%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% the first two terms of the world are the same if they are the same.
+c_repeted_covid([X, Y|_]):-
+    X == Y.
+c_repeted_elements(X, Y):-
+    X == Y.
+
+c_replace_repetition1([X,Y|T], WN):-
+    (   c_generate_covid(C)	),
+    (   c_repeted_elements(X, Y) -> replace([X,Y|T], 0, C, WN)	);
+    \+ c_repeted_elements(X, Y),
+    .
+
+c_replace_repetition([X,Y,R,S|T], WN):-
+    c_generate_doctor(D),
+    c_generate_covid(C),
+    (   c_repeted_elements(X, Y) -> replace([X,Y|T], 0, C, WN)
+    ); \+ c_repeted_elements(X, Y),
+    (   c_repeted_elements(R, S) -> replace([X,Y|T], 0, C, WN)
+    ); \+ c_repeted_elements(X, Y)
+    ).
+
+do:-
+    Ws = [9/5-covid, 9/4-covid, 6/3-doctor, 6/3-doctor, 2/7-mask, 8/7-home],
+    c_replace_repetition1(Ws, W), write(W).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%CTRL-CODE%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % world generation with constraints
 
 
-% random generation without constraint
+% random generation with some coordinal constraint
 c_generate_covid(X/Y-covid):-
-    random_between(1, 9, X), random_between(1, 9, Y).
+    % covid can't be near 1/1
+    random_between(3, 7, X), random_between(3, 7, Y).
 c_generate_home(X/Y-home):-
-    random_between(1, 9, X), random_between(1, 9, Y).
+    % home must be not 1/1
+    random_between(1, 8, X), random_between(2, 9, Y).
 c_generate_doctor(X/Y-doctor):-
     random_between(1, 9, X), random_between(1, 9, Y).
 c_generate_mask(X/Y-mask):-
     random_between(1, 9, X), random_between(1, 9, Y).
 
+% show_world runs a loop that prints each cell of the world.
+c_show_world(W):-
+    write("______________"), nl,
+    forto(I, 1, 9, forto(J, 1, 9, (c_process(I, J, W) ) ) ),
+    write("______________"), nl.
 
-% Problem: No Constraint, solution, exploit some pre-written code.
+% c_process matches the I/J with what ever in the list, if J % 9 == 0
+% print a new line.
+c_process(I, J, W) :-
+    ((\+ on(I/J-_, W) ->  write("|_"));
+	(on(I/J-covid, W) ->  write("|c"));
+    (on(I/J-doctor, W) ->  write("|d"));
+    (on(I/J-mask, W) ->  write("|m"));
+    (on(I/J-home, W) ->  write("|h"))),
+    ((J = 9 -> write("|"), nl; true)), !.
+
+% Problem: No Constraint. Solution: exploit some pre-written code.
 c_generate_world(W):-
-    c_generate_covid(C0), append([], [C0], W0),
-	c_generate_covid(C1), append(W0, [C1], W1),
+    % generate the first covid and append it to the World and ...
+    (c_generate_covid(C0), append([], [C0], W0)),
+    % generate the second covid and add it to the list then...
+	(c_generate_covid(C1), append(W0, [C1], W1)),
 	c_generate_doctor(D0), append(W1, [D0], W2),
     c_generate_doctor(D1), append(W2, [D1], W3),
     c_generate_mask(M), append(W3, [M], W4),
     c_generate_home(H), append(W4, [H], W5),
-    append([], W5, W).
-	
+    append([], W5, WN),
+    c_replace_repetition(WN, W),
+    c_show_world(W), nl,
+    (write("world generated successfully."), nl), !;
+    (write("world failed successfully."), nl).
+    
 
 % world setting
 c_world(W) :-
-        W = [9/5-covid, 4/6-covid, 2/7-mask, 6/8-doctor, 6/3-doctor, 8/7-home].	% Need tweaking.
+        W = [9/5-covid, 4/6-covid, 2/7-mask, 6/8-doctor, 6/3-doctor, 8/7-home].
 
 
 % [helper] At Pos there is Ent is true if Pos-Ent exist in world.
@@ -103,7 +176,7 @@ c_world_pos_near(Pos, Ent, Perc) :-
         ;   Perc = 0 % ...or Perc doesn't exist.
         ).
 
-% [helper] Return what? 
+% [helper]
 c_world_pos_perception(Actions, Pos-_Dir, Perc) :-
         c_world_pos_near(Pos, covid, Ppl),
         c_world_pos_near(Pos, doctor, Alco),
@@ -153,9 +226,9 @@ c_valid_action(grab, Pos, Hist) :-
         ;   c_error('There is no mask here.')
         ).
 
-% [helper] Home coordinate validator
+% [helper] Home coordinate validator, in-applicable
 c_valid_action(getIn, Pos, _Hist) :-
-        (   c_home(Pos) ->
+        (   c_home(Pos) -> % in Wumpus world 1/1 is hardcoded
             true
         ;   c_error('Here is not home.')
         ).
@@ -318,30 +391,51 @@ pos_neighbour(X/Y, NX/NY) :-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%OLDS_STUFF%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% A double for loop with decreasing value
+% ?-forto(I, 1, 9, forto(J, 1, 9, (write(I-J), nl))).
+% Will count up from 1-1, 1-2,..., 9-9
+:- meta_predicate(forto(*, *, *, 0)).
+forto(Count, FirstExp, LastExp, Goal) :-
+    First is FirstExp,
+    Last is LastExp,
+    forto_aux(Count, First, Last, 1, Goal).
+
+:- meta_predicate(forto_aux(*, *, *, *, 0)).
+forto_aux(Count, First, Last, Increment, Goal) :-
+    (   First =< Last ->
+        \+ \+ (Count = First, call(Goal)),
+        Next is First + Increment,
+        forto_aux(Count, Next, Last, Increment, Goal)
+    ;   true
+    ).
+
+% need a mechanism for checking if exist or not.
+on(Item,[Item|_]).       /* is the target item the head of the list */
+on(Item,[_|Tail]):-
+    on(Item,Tail).
+
+% first loop.
+loop(0).  
+loop(N) :- N>0,
+    write('value of N is: '), write(N), nl,
+    S is N-1, loop(S).  
+% sample for loop.
+x_written_n_times(X, N) :-
+    foreach(between(1,N,_), write(X)), nl.
+
+% helper for location validator
 gridsize(9).
 gridindex(V):-
 	gridsize(S),
 	between(1, S, V).
-
+% location validator
 location(coord(I,J)) :- gridindex(I), gridindex(J).
 
+% direction validator
 direction(V) :- member(V,[up,down,left,right]).
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+% replace nth element of in a list
+replace([_|T], 0, X, [X|T]). /*basecase, replace the head with X*/
+replace([H|T], I, X, [H|R]):- I > -1, NI is I-1, replace(T, NI, X, R), !.
+replace(L, _, _, L).
